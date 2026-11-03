@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>职业规划 Agent - 完整演示版 (含历史记录)</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { display: flex; height: 100vh; background-color: #ffffff; overflow: hidden; }
+        
+        /* --- 左侧边栏 --- */
+        .sidebar { width: 260px; background-color: #f9f9f9; border-right: 1px solid #e5e5e5; padding: 20px 10px; display: flex; flex-direction: column; }
+        .new-chat-btn { width: 100%; padding: 12px 15px; background: #fff; border: 1px solid #ccc; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: bold; transition: 0.2s; margin-bottom: 20px;}
+        .new-chat-btn:hover { background: #eaeaea; border-color: #999; }
+        
+        /* 历史记录列表 */
+        .history-list { flex: 1; overflow-y: auto; }
+        .history-item { padding: 12px 15px; border-radius: 8px; cursor: pointer; margin-bottom: 5px; font-size: 14px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: 0.2s;}
+        .history-item:hover { background: #e5e5e5; }
+        .history-item.active { background: #e5e5e5; font-weight: bold; }
+        
+        /* --- 主对话区 --- */
+        .main-content { flex: 1; display: flex; flex-direction: column; position: relative; }
+        .chat-area { flex: 1; padding: 40px; overflow-y: auto; display: flex; flex-direction: column; scroll-behavior: smooth; }
+        .welcome-msg { text-align: center; color: #888; margin-top: 20vh; font-size: 24px; font-weight: bold; }
+        
+        /* 消息气泡 */
+        .message { display: flex; margin-bottom: 20px; width: 100%; }
+        .message.user { justify-content: flex-end; }
+        .bubble { padding: 12px 18px; border-radius: 12px; max-width: 75%; line-height: 1.6; white-space: pre-wrap; font-size: 15px; word-wrap: break-word;}
+        .user .bubble { background: #000; color: #fff; border-bottom-right-radius: 2px; }
+        .bot .bubble { background: #f4f4f4; color: #333; border-bottom-left-radius: 2px; }
+
+        /* --- 底部输入框 --- */
+        .input-area { padding: 20px 40px; border-top: 1px solid #f0f0f0; background: #fff; }
+        .input-box { display: flex; align-items: center; background: #fff; border: 1px solid #ddd; border-radius: 24px; padding: 10px 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }
+        .input-box input { flex: 1; border: none; outline: none; font-size: 16px; padding: 5px; }
+        .input-box button { background: #000; color: #fff; border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; font-size: 18px; display: flex; justify-content: center; align-items: center; transition: 0.2s;}
+
+        /* --- 弹窗界面 --- */
+        .modal-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: 0.3s; z-index: 100; backdrop-filter: blur(2px); }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .question-box { background: #fff; width: 500px; border-radius: 16px; padding: 30px; box-shadow: 0 15px 35px rgba(0,0,0,0.15); transform: translateY(20px); transition: 0.3s; }
+        .modal-overlay.active .question-box { transform: translateY(0); }
+        .question-box h3 { font-size: 14px; color: #666; margin-bottom: 15px; }
+        .question-box .question-text { font-size: 18px; font-weight: bold; margin-bottom: 20px; color: #111; }
+        .option { padding: 14px 16px; border: 1px solid #e5e5e5; border-radius: 10px; margin-bottom: 10px; cursor: pointer; display: flex; justify-content: space-between; transition: 0.2s;}
+        .option:hover { background: #f9f9f9; border-color: #ccc; }
+        .option.selected { border-color: #000; background: #f0f0f0; font-weight: bold; }
+        .modal-actions { display: flex; justify-content: flex-end; margin-top: 25px; gap: 12px; }
+        .modal-actions button { padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: bold; }
+        .btn-skip { background: #f0f0f0; color: #333; }
+        .btn-send { background: #000; color: #fff; }
+    </style>
+</head>
+<body>
+
+    <!-- 左侧边栏 -->
+    <div class="sidebar">
+        <button class="new-chat-btn" onclick="startNewChat()">
+            <span>+</span> New Chat
+        </button>
+        <div class="history-list" id="historyList">
+            <!-- 历史记录会渲染在这里 -->
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+        <div class="chat-area" id="chatArea">
+            <div class="welcome-msg" id="welcomeMsg">Ready when you are.</div>
+        </div>
+
+        <div class="input-area">
+            <div class="input-box">
+                <input type="text" id="userInput" placeholder="输入你的年级、专业、兴趣方向..." onkeypress="if(event.keyCode===13) sendMessage()">
+                <button id="sendBtn" onclick="sendMessage()">↑</button>
+            </div>
+        </div>
+
+        <!-- 弹窗区 -->
+        <div class="modal-overlay" id="questionModal">
+            <div class="question-box">
+                <h3>💡 Agent 需要更多信息</h3>
+                <div class="question-text" id="modalQuestionText">你想优先了解什么？</div>
+                <div id="modalOptionsContainer"></div>
+                <div class="modal-actions">
+                    <button class="btn-skip" onclick="closeModal()">Skip</button>
+                    <button class="btn-send" onclick="submitModalOption()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 核心数据结构与状态
+        // ==========================================
+        // 模拟数据库，存储所有会话
+        // 结构：[ { id: '...', title: '...', messages: [{role:'user', text:'...'}] } ]
+        let allSessions = []; 
+        let currentSessionId = null;
+        let isGenerating = false;
+        let hasAskedQuestion = false;
+
+        // 页面加载时初始化
+        window.onload = () => {
+            loadFromStorage();
+            if (allSessions.length === 0) {
+                startNewChat();
+            } else {
+                // 默认加载最新一个会话
+                loadSession(allSessions[0].id);
+            }
+        };
+
+        // ==========================================
+        // 1. 会话管理 (New Chat & 历史记录)
+        // ==========================================
+        function startNewChat() {
+            if (isGenerating) return;
+
+            // 创建新会话
+            const newSession = {
+                id: 'session_' + Date.now(),
+                title: '新的职业规划',
+                messages: []
+            };
+            
+            allSessions.unshift(newSession); // 插到最前面
+            currentSessionId = newSession.id;
+            hasAskedQuestion = false;
+
+            // 更新 UI
+            renderHistoryList();
+            clearChatArea();
+            saveToStorage();
+        }
+
+        function loadSession(sessionId) {
+            if (isGenerating || currentSessionId === sessionId) return;
+
+            currentSessionId = sessionId;
+            const session = allSessions.find(s => s.id === sessionId);
+            
+            // 恢复 UI
+            renderHistoryList();
+            clearChatArea();
+            
+            // 渲染历史消息
+            if (session.messages.length > 0) {
+                document.getElementById('welcomeMsg').style.display = 'none';
+                session.messages.forEach(msg => {
+                    renderMessageBubble(msg.role, msg.text);
+                });
+                // 粗略判断是否已经弹过窗（如果消息数大于1，大概率已经问过了）
+                hasAskedQuestion = session.messages.length > 1; 
+            } else {
+                hasAskedQuestion = false;
+            }
+        }
+
+        function renderHistoryList() {
+            const list = document.getElementById('historyList');
+            list.innerHTML = '';
+            
+            allSessions.forEach(session => {
+                const div = document.createElement('div');
+                div.className = `history-item ${session.id === currentSessionId ? 'active' : ''}`;
+                div.innerText = session.title;
+                div.onclick = () => loadSession(session.id);
+                list.appendChild(div);
+            });
+        }
+
+        function updateCurrentSessionTitle(text) {
+            const session = allSessions.find(s => s.id === currentSessionId);
+            if (session && session.title === '新的职业规划') {
+                // 截取前 10 个字作为标题
+                session.title = text.substring(0, 10) + (text.length > 10 ? '...' : '');
+                renderHistoryList();
+            }
+        }
+
+        function saveMessageToCurrentSession(role, text) {
+            const session = allSessions.find(s => s.id === currentSessionId);
+            if (session) {
+                session.messages.push({ role, text });
+                saveToStorage();
+            }
+        }
+
+        // ==========================================
+        // 2. 发送消息与剧本
+        // ==========================================
+        function sendMessage() {
+            if (isGenerating) return;
+
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            document.getElementById('welcomeMsg').style.display = 'none';
+            input.value = '';
+
+            // 1. 渲染并保存用户消息
+            renderMessageBubble('user', text);
+            saveMessageToCurrentSession('user', text);
+            updateCurrentSessionTitle(text); // 动态更新左侧标题
+            setLoadingState(true);
+
+            // 2. 模拟 AI 回复
+            if (!hasAskedQuestion) {
+                mockTypingEffect("你好！我是你的职业规划助手。基于你的描述，为了给你制定最精准的成长路线，我需要确认一下你的优先意向。", () => {
+                    hasAskedQuestion = true;
+                    showQuestionModal("你想优先了解哪个方向？", ["A. 后端开发 (Java/架构)", "B. 前端开发 (Vue/React)", "C. 算法/AI (大模型)"]);
+                    setLoadingState(false);
+                });
+            } else {
+                if (text.includes("前端")) {
+                    mockTypingEffect("好的！基于你选择的前端方向，为你生成以下路线：\n\n【大二上】\n1. 核心课程：数据结构与算法。\n2. 技术栈：HTML5/CSS3/ES6，Vue3。\n3. 项目：响应式个人博客。\n\n【大二下】\n1. 工程化：Webpack/Vite。\n2. 项目：接入真实 API 的电影推荐应用。", () => {
+                        setLoadingState(false);
+                    });
+                } else if (text.includes("后端")) {
+                    mockTypingEffect("好的！选择后端方向非常扎实。为你生成以下路线：\n\n【大二上】\n1. 核心课程：数据结构与算法、操作系统。\n2. 技术栈：Java 基础、MySQL。\n\n【大二下】\n1. 框架：Spring Boot。\n2. 项目：全栈电商秒杀系统。", () => {
+                        setLoadingState(false);
+                    });
+                } else {
+                    mockTypingEffect("收到！对于AI方向，建议先打好数学基础。大二上学期先掌握 Python 基础与 NumPy/Pandas 库。", () => {
+                        setLoadingState(false);
+                    });
+                }
+            }
+        }
+
+        // ==========================================
+        // 3. 弹窗交互
+        // ==========================================
+        let selectedOptionText = "";
+
+        function showQuestionModal(questionText, options) {
+            document.getElementById('modalQuestionText').innerText = questionText;
+            const container = document.getElementById('modalOptionsContainer');
+            container.innerHTML = '';
+            
+            options.forEach((opt) => {
+                const div = document.createElement('div');
+                div.className = 'option';
+                div.innerText = opt;
+                div.onclick = function() { selectOption(this); };
+                container.appendChild(div);
+            });
+
+            selectedOptionText = "";
+            document.getElementById('questionModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('questionModal').classList.remove('active');
+        }
+
+        function selectOption(element) {
+            document.querySelectorAll('.option').forEach(opt => opt.classList.remove('selected'));
+            element.classList.add('selected');
+            selectedOptionText = element.innerText;
+        }
+
+        function submitModalOption() {
+            if (!selectedOptionText) return;
+            closeModal();
+            
+            // 将用户的选择作为消息发送
+            document.getElementById('userInput').value = selectedOptionText;
+            sendMessage();
+        }
+
+        // ==========================================
+        // 4. 渲染与辅助工具
+        // ==========================================
+        function mockTypingEffect(fullText, onCompleteCallback) {
+            // 先创建一个空的机器人气泡
+            const bubble = renderMessageBubble('bot', '');
+            let i = 0;
+            
+            setTimeout(() => {
+                const interval = setInterval(() => {
+                    if (i < fullText.length) {
+                        bubble.innerText += fullText.charAt(i);
+                        i++;
+                        document.getElementById('chatArea').scrollTop = document.getElementById('chatArea').scrollHeight;
+                    } else {
+                        clearInterval(interval);
+                        // 打字结束后，保存完整消息
+                        saveMessageToCurrentSession('bot', fullText);
+                        if (onCompleteCallback) onCompleteCallback();
+                    }
+                }, 30);
+            }, 500);
+        }
+
+        function renderMessageBubble(role, text) {
+            const chatArea = document.getElementById('chatArea');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${role}`;
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            bubble.innerText = text;
+            msgDiv.appendChild(bubble);
+            chatArea.appendChild(msgDiv);
+            chatArea.scrollTop = chatArea.scrollHeight;
+            return bubble;
+        }
+
+        function clearChatArea() {
+            const chatArea = document.getElementById('chatArea');
+            chatArea.innerHTML = '<div class="welcome-msg" id="welcomeMsg">Ready when you are.</div>';
+        }
+
+        function setLoadingState(loading) {
+            isGenerating = loading;
+            document.getElementById('sendBtn').innerText = loading ? "⏳" : "↑";
+        }
+
+        // 本地存储，刷新页面历史记录不丢失
+        function saveToStorage() {
+            localStorage.setItem('agent_sessions', JSON.stringify(allSessions));
+        }
+
+        function loadFromStorage() {
+            const data = localStorage.getItem('agent_sessions');
+            if (data) {
+                allSessions = JSON.parse(data);
+            }
+        }
+    </script>
+</body>
+</html>
