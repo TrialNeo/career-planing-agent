@@ -1,0 +1,10 @@
+node_modules
+dist
+.cache
+.local
+.superpowers
+apps/web/dist
+index.html
+knowledge
+package-lock.json
+test-results

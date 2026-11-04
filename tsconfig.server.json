@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "rootDir": ".",
+    "outDir": "dist"
+  },
+  "include": ["apps/server/src", "packages/contracts/src", "scripts"],
+  "exclude": ["scripts/review-snapshot.mjs"]
+}

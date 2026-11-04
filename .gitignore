@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.cache/
+.local/
+.superpowers/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.env
+*.sqlite*
